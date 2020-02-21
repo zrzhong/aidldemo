@@ -15,12 +15,29 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private IBookManager bookManager;
+    private IBinder.DeathRecipient deathRecipient = new IBinder.DeathRecipient() {
+        @Override
+        public void binderDied() {
+            //binder死亡会回调该方法
+            if (bookManager == null) {
+                return;
+            }
+            bookManager.asBinder().unlinkToDeath(deathRecipient, 0);
+            bookManager = null;
+            //重新绑定远程服务
+            bindService(new Intent("com.zzr.aidldemo.RemoteService").setPackage(getPackageName()),
+                    serviceConnection, BIND_AUTO_CREATE);
+        }
+    };
+
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             Log.i(TAG, "onServiceConnected: 连接成功");
             bookManager = IBookManager.Stub.asInterface(service);
             try {
+                //设置死亡代理
+                service.linkToDeath(deathRecipient, 0);
                 List<Book> bookList = bookManager.getBookList();
                 Log.i(TAG, "book size: " + bookList.size());
                 Book book = new Book(4, "python");
